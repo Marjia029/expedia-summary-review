@@ -2,6 +2,7 @@ import os
 import time
 import logging
 import pyspark
+import json
 from pyspark.sql import SparkSession
 import pyspark.sql.functions as F
 from pyspark.sql.functions import coalesce, lit, col, concat_ws, when, udf, round
@@ -44,36 +45,40 @@ def read_data(spark, file_path):
         return None
 
 # State abbreviation mapping dictionaries
-state_mapping_usa = {
-    "AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas",
-    "CA": "California", "CO": "Colorado", "CT": "Connecticut", "DE": "Delaware",
-    "FL": "Florida", "GA": "Georgia", "HI": "Hawaii", "ID": "Idaho", "IL": "Illinois",
-    "IN": "Indiana", "IA": "Iowa", "KS": "Kansas", "KY": "Kentucky", "LA": "Louisiana",
-    "ME": "Maine", "MD": "Maryland", "MA": "Massachusetts", "MI": "Michigan",
-    "MN": "Minnesota", "MS": "Mississippi", "MO": "Missouri", "MT": "Montana",
-    "NE": "Nebraska", "NV": "Nevada", "NH": "New Hampshire", "NJ": "New Jersey",
-    "NM": "New Mexico", "NY": "New York", "NC": "North Carolina", "ND": "North Dakota",
-    "OH": "Ohio", "OK": "Oklahoma", "OR": "Oregon", "PA": "Pennsylvania",
-    "RI": "Rhode Island", "SC": "South Carolina", "SD": "South Dakota", "TN": "Tennessee",
-    "TX": "Texas", "UT": "Utah", "VT": "Vermont", "VA": "Virginia", "WA": [
-        "Washington", "Washington, D.C.", "District of Columbia", "Dist. of Columbia"
-    ],
-    "WV": "West Virginia", "WI": "Wisconsin", "WY": "Wyoming", "VI": "Virgin Islands",
-    "SJ": ["St John", "Saint John", "St. John Island", "Saint John Island"],
-    "ST": ["St Thomas", "Saint Thomas", "St. Thomas Island", "Saint Thomas Island"],
-    "SX": ["St Croix", "Saint Croix", "St. Croix Island", "Saint Croix Island"]
-}
+# state_mapping_usa = {
+#     "AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas",
+#     "CA": "California", "CO": "Colorado", "CT": "Connecticut", "DE": "Delaware",
+#     "FL": "Florida", "GA": "Georgia", "HI": "Hawaii", "ID": "Idaho", "IL": "Illinois",
+#     "IN": "Indiana", "IA": "Iowa", "KS": "Kansas", "KY": "Kentucky", "LA": "Louisiana",
+#     "ME": "Maine", "MD": "Maryland", "MA": "Massachusetts", "MI": "Michigan",
+#     "MN": "Minnesota", "MS": "Mississippi", "MO": "Missouri", "MT": "Montana",
+#     "NE": "Nebraska", "NV": "Nevada", "NH": "New Hampshire", "NJ": "New Jersey",
+#     "NM": "New Mexico", "NY": "New York", "NC": "North Carolina", "ND": "North Dakota",
+#     "OH": "Ohio", "OK": "Oklahoma", "OR": "Oregon", "PA": "Pennsylvania",
+#     "RI": "Rhode Island", "SC": "South Carolina", "SD": "South Dakota", "TN": "Tennessee",
+#     "TX": "Texas", "UT": "Utah", "VT": "Vermont", "VA": "Virginia", "WA": [
+#         "Washington", "Washington, D.C.", "District of Columbia", "Dist. of Columbia"
+#     ],
+#     "WV": "West Virginia", "WI": "Wisconsin", "WY": "Wyoming", "VI": "Virgin Islands",
+#     "SJ": ["St John", "Saint John", "St. John Island", "Saint John Island"],
+#     "ST": ["St Thomas", "Saint Thomas", "St. Thomas Island", "Saint Thomas Island"],
+#     "SX": ["St Croix", "Saint Croix", "St. Croix Island", "Saint Croix Island"]
+# }
 
-state_mapping_canada = {
-    "NL": "Newfoundland and Labrador", "PE": "Prince Edward Island", "NS": "Nova Scotia",
-    "NB": "New Brunswick", "QC": "Quebec", "ON": "Ontario", "MB": "Manitoba",
-    "SK": "Saskatchewan", "AB": "Alberta", "BC": "British Columbia", "YT": "Yukon",
-    "NT": "Northwest Territories", "NU": "Nunavut"
-}
+# state_mapping_canada = {
+#     "NL": "Newfoundland and Labrador", "PE": "Prince Edward Island", "NS": "Nova Scotia",
+#     "NB": "New Brunswick", "QC": "Quebec", "ON": "Ontario", "MB": "Manitoba",
+#     "SK": "Saskatchewan", "AB": "Alberta", "BC": "British Columbia", "YT": "Yukon",
+#     "NT": "Northwest Territories", "NU": "Nunavut"
+# }
 
-def generate_state_mappings(state_mapping_usa, state_mapping_canada):
+def generate_state_mappings():
     try:
-        # Flatten the USA mapping
+        
+        with open("input/state_name_abbr.json", "r") as usa_state_name, open("input/state_name_abbr_ca.json", "r") as canada_state_name:
+            state_mapping_usa = json.load(usa_state_name)
+            state_mapping_canada = json.load(canada_state_name)
+
         flat_usa_mapping = {}
         for abbr, names in state_mapping_usa.items():
             if isinstance(names, list):
@@ -215,7 +220,7 @@ def main():
         guest_review_df = read_data(spark, "input/expedia-lodging-guestreviews-1-all.jsonl")
         summary_df = read_data(spark, "input/expedia-lodging-summary-en_us-1-all.jsonl")
         if guest_review_df and summary_df:
-            usa_map_entries, canada_map_entries = generate_state_mappings(state_mapping_usa, state_mapping_canada)
+            usa_map_entries, canada_map_entries = generate_state_mappings()
             transformed_summary_df = transform_summary_df(summary_df, usa_map_entries, canada_map_entries)
             transformed_guest_review_df = transform_guest_review_df(guest_review_df)
             if transformed_summary_df and transformed_guest_review_df:
