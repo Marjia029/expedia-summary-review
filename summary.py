@@ -5,7 +5,7 @@ import pyspark
 import json
 from pyspark.sql import SparkSession
 import pyspark.sql.functions as F
-from pyspark.sql.functions import coalesce, lit, col, concat_ws, when, udf, round
+# from pyspark.sql.functions import coalesce, lit, col, concat_ws, when, udf, round
 from pyspark.sql.types import LongType, StringType
 
 # Initialize logging
@@ -44,33 +44,6 @@ def read_data(spark, file_path):
         logging.error(f"Error reading data from {file_path}", exc_info=True)
         return None
 
-# State abbreviation mapping dictionaries
-# state_mapping_usa = {
-#     "AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas",
-#     "CA": "California", "CO": "Colorado", "CT": "Connecticut", "DE": "Delaware",
-#     "FL": "Florida", "GA": "Georgia", "HI": "Hawaii", "ID": "Idaho", "IL": "Illinois",
-#     "IN": "Indiana", "IA": "Iowa", "KS": "Kansas", "KY": "Kentucky", "LA": "Louisiana",
-#     "ME": "Maine", "MD": "Maryland", "MA": "Massachusetts", "MI": "Michigan",
-#     "MN": "Minnesota", "MS": "Mississippi", "MO": "Missouri", "MT": "Montana",
-#     "NE": "Nebraska", "NV": "Nevada", "NH": "New Hampshire", "NJ": "New Jersey",
-#     "NM": "New Mexico", "NY": "New York", "NC": "North Carolina", "ND": "North Dakota",
-#     "OH": "Ohio", "OK": "Oklahoma", "OR": "Oregon", "PA": "Pennsylvania",
-#     "RI": "Rhode Island", "SC": "South Carolina", "SD": "South Dakota", "TN": "Tennessee",
-#     "TX": "Texas", "UT": "Utah", "VT": "Vermont", "VA": "Virginia", "WA": [
-#         "Washington", "Washington, D.C.", "District of Columbia", "Dist. of Columbia"
-#     ],
-#     "WV": "West Virginia", "WI": "Wisconsin", "WY": "Wyoming", "VI": "Virgin Islands",
-#     "SJ": ["St John", "Saint John", "St. John Island", "Saint John Island"],
-#     "ST": ["St Thomas", "Saint Thomas", "St. Thomas Island", "Saint Thomas Island"],
-#     "SX": ["St Croix", "Saint Croix", "St. Croix Island", "Saint Croix Island"]
-# }
-
-# state_mapping_canada = {
-#     "NL": "Newfoundland and Labrador", "PE": "Prince Edward Island", "NS": "Nova Scotia",
-#     "NB": "New Brunswick", "QC": "Quebec", "ON": "Ontario", "MB": "Manitoba",
-#     "SK": "Saskatchewan", "AB": "Alberta", "BC": "British Columbia", "YT": "Yukon",
-#     "NT": "Northwest Territories", "NU": "Nunavut"
-# }
 
 def generate_state_mappings():
     try:
@@ -103,18 +76,18 @@ def transform_summary_df(summary_df, usa_map_entries, canada_map_entries):
     try:
         start_time = time.time()
         transformed_df = summary_df.select(
-            coalesce(col("propertyId.expedia"), lit("")).alias("Expedia_ID"),
-            coalesce(col("address1"), lit("")).alias("Address"),
-            coalesce(col("propertyName"), lit("")).alias("Property_Name"),
-            coalesce(col("city"), lit("")).alias("City"),
-            coalesce(col("province"), lit("")).alias("State"),
-            coalesce(col("postalCode"), lit("")).alias("Zip"),
-            coalesce(col("country"), lit("")).alias("Country"),
-            when(
-                (col("geoLocation.latitude").isNull()) & (col("geoLocation.longitude").isNull() & col("geoLocation").isNull()), lit("")  # Handle null lat/lon
+            F.coalesce(F.col("propertyId.expedia"), F.lit("")).alias("expedia_id"),
+            F.coalesce(F.col("address1"), F.lit("")).alias("address"),
+            F.coalesce(F.col("propertyName"), F.lit("")).alias("property_name"),
+            F.coalesce(F.col("city"), F.lit("")).alias("city"),
+            F.coalesce(F.col("province"), F.lit("")).alias("state"),
+            F.coalesce(F.col("postalCode"), F.lit("")).alias("zip"),
+            F.coalesce(F.col("country"), F.lit("")).alias("country"),
+            F.when(
+                (F.col("geoLocation.latitude").isNull()) & (F.col("geoLocation.longitude").isNull() & F.col("geoLocation").isNull()), F.lit("")  # Handle null lat/lon
             ).otherwise(
-                concat_ws(",", col("geoLocation.latitude"), col("geoLocation.longitude"))  # Concatenate lat/lon
-            ).alias("LatLon"),
+                F.concat_ws(",", F.col("geoLocation.latitude"), F.col("geoLocation.longitude"))  # Concatenate lat/lon
+            ).alias("latlon"),
             F.coalesce(
                 F.when(
                     (F.col("city").isNotNull()) & (F.col("state").isNotNull()) & (F.col("country").isNotNull()),
@@ -135,7 +108,7 @@ def transform_summary_df(summary_df, usa_map_entries, canada_map_entries):
                 ).when(
                     F.col("country").isNotNull(), F.col("country")
                 ).otherwise(F.lit("")), F.lit("")
-            ).alias("Display"),
+            ).alias("display"),
             F.coalesce(
                 F.when(
                     F.col("country").isin("USA", "United States", "United States of America", "US"),
@@ -145,7 +118,7 @@ def transform_summary_df(summary_df, usa_map_entries, canada_map_entries):
                     F.element_at(F.create_map(*[F.lit(x) for x in sum(canada_map_entries, ())]), F.col("state"))
                 ),
                 F.lit("")
-            ).alias("State_Abbr")
+            ).alias("state_abbr")
         )
         end_time = time.time()
         logging.info(f"Summary DataFrame transformed successfully in {end_time - start_time:.2f} seconds")
@@ -159,10 +132,10 @@ def transform_guest_review_df(guest_review_df):
     try:
         start_time = time.time()
         transformed_df = guest_review_df.select(
-            coalesce(col("propertyId.expedia"), lit("")).alias("Expedia_Id"),
-            coalesce(col("guestRating.expedia.avgRating"), lit("")).alias("Review_Score"),
-            coalesce((round(coalesce(col("guestRating.expedia.avgRating").cast(LongType()), lit(0)) / 2, 1)).cast(StringType()), lit("")).alias("Review_Score_General"),
-            coalesce(col("guestRating.expedia.reviewCount").cast(LongType()), lit(0)).alias("Number_Of_Reviews")
+            F.coalesce(F.col("propertyId.expedia"), F.lit("")).alias("expedia_Id"),
+            F.coalesce(F.col("guestRating.expedia.avgRating"), F.lit("")).alias("review_score"),
+            F.coalesce((F.round(F.coalesce(F.col("guestRating.expedia.avgRating").cast(LongType()), F.lit(0)) / 2, 1)).cast(StringType()), F.lit("")).alias("review_score_general"),
+            F.coalesce(F.col("guestRating.expedia.reviewCount").cast(LongType()), F.lit(0)).alias("number_of_review")
         )
         end_time = time.time()
         logging.info(f"Guest Review DataFrame transformed successfully in {end_time - start_time:.2f} seconds")
@@ -175,7 +148,7 @@ def transform_guest_review_df(guest_review_df):
 def join_dataframes(summary_df, guest_review_df):
     try:
         start_time = time.time()
-        joined_df = summary_df.join(guest_review_df, "Expedia_ID", "inner")
+        joined_df = summary_df.join(guest_review_df, "expedia_id", "inner")
         end_time = time.time()
         logging.info(f"DataFrames joined successfully in {end_time - start_time:.2f} seconds")
         return joined_df
@@ -189,28 +162,28 @@ def write_to_iceberg(spark, df):
 
         spark.sql("""
             CREATE TABLE IF NOT EXISTS  local.default.expedia_summary(
-                Expedia_ID STRING,
-                Address STRING,
-                Property_Name STRING,
-                City STRING,
-                State STRING,
-                Zip STRING,
-                Country STRING,
-                LatLon STRING,
-                Display STRING,
-                State_Abbr STRING,
-                Review_Score STRING,
-                Review_Score_General STRING,
-                Number_Of_Reviews LONG
+                expedia_id STRING,
+                address STRING,
+                property_name STRING,
+                city STRING,
+                state STRING,
+                zip STRING,
+                country STRING,
+                latlon STRING,
+                display STRING,
+                state_abbr STRING,
+                review_score STRING,
+                review_score_general STRING,
+                number_Of_review LONG
             ) USING iceberg
+            OPTIONS ('format-version'='2')
             """
         )
-        df.writeTo("local.default.expedia_summary").append()
+        df.writeTo("local.default.expedia_summary").overwrite(F.lit(True))
         end_time = time.time()
         logging.info(f"DataFrame written to Iceberg table local.default.expedia_summary successfully in {end_time - start_time:.2f} seconds")
     except Exception as e:
         logging.error(f"Error writing DataFrame to Iceberg table local.default.expedia_summary", exc_info=True)
-
 
 # Main function to execute the whole process
 def main():
@@ -231,11 +204,11 @@ def main():
 
     spark.sql("SELECT * FROM local.default.expedia_summary").show(5, truncate = False)
 
-    result = spark.sql("SELECT COUNT(*) AS total_rows FROM local.default.expedia_summary").collect()
-    total_rows = result[0]['total_rows']
+    #result = spark.sql("SELECT COUNT(*) AS total_rows FROM local.default.expedia_summary").collect()
+    #total_rows = result[0]['total_rows']
 
     # Print the total number of rows
-    logging.info(f"Total rows: {total_rows}")
+    #logging.info(f"Total rows: {total_rows}")
 
     end_time = time.time()
     logging.info(f"The script executed in {end_time - start_time:.2f} seconds")
